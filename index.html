@@ -15,6 +15,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .modal-open { overflow: hidden; }
     </style>
 </head>
 <body>
@@ -104,13 +105,14 @@
 
         // --- 主程式 App ---
         function App() {
-            // 💡 聯絡人預設為不參加出遊 (outing: 'E')
             const [contact, setContact] = useState({ name: '', phone: '', email: '', type: '一般家庭', tshirtSize: '', outing: 'E', diy: '', birthDate: '', idNumber: '' });
             const [children, setChildren] = useState([{ id: Date.now(), name: '', campDays: [], outing: 'E', diy: '', tshirtSize: '', birthDate: '', idNumber: '' }]);
             const [adults, setAdults] = useState([]);
             const [submitStatus, setSubmitStatus] = useState('idle');
+            
+            const [alertMsg, setAlertMsg] = useState('');
+            const [showDetails, setShowDetails] = useState(false);
 
-            // 觸發 Lucide 圖示渲染
             useEffect(() => {
                 lucide.createIcons();
             });
@@ -124,32 +126,60 @@
             const updateChild = (id, updates) => setChildren(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
             const updateAdult = (id, updates) => setAdults(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
 
-            const totalAmount = useMemo(() => {
+            // 💡 包含同工孩童計費的費用明細
+            const feeDetails = useMemo(() => {
                 let total = 0;
-                if (contact.outing !== 'E') total += PRICING.outing[contact.outing] || 0;
-                if (contact.type === '一般家庭') {
-                    children.forEach(c => {
-                        if (c.campDays.length > 0) {
-                            total += PRICING.camp;
-                            const sizeObj = TSHIRT_SIZES.find(s => s.value === c.tshirtSize);
-                            if (sizeObj) total += sizeObj.surcharge;
-                        }
-                        if (c.outing !== 'E') total += PRICING.outing[c.outing] || 0;
-                    });
+                let details = [];
+
+                if (contact.outing !== 'E') {
+                    let p = PRICING.outing[contact.outing];
+                    total += p;
+                    details.push(`主要聯絡人 - 出遊方案 ${contact.outing}: $${p}`);
                 }
-                adults.forEach(a => { if (a.outing !== 'E') total += PRICING.outing[a.outing] || 0; });
-                return total;
+
+                // 💡 移除限制，讓同工的孩子也正常計費並顯示於明細
+                children.forEach((c, i) => {
+                    let childTotal = 0;
+                    let childName = c.name ? `(${c.name})` : '';
+                    
+                    if (c.campDays.length > 0) {
+                        childTotal += PRICING.camp;
+                        const sizeObj = TSHIRT_SIZES.find(s => s.value === c.tshirtSize);
+                        if (sizeObj && sizeObj.surcharge > 0) {
+                            childTotal += sizeObj.surcharge;
+                            details.push(`孩童 ${i+1} ${childName} - 營會費 + T恤加價: $${PRICING.camp + sizeObj.surcharge}`);
+                        } else {
+                            details.push(`孩童 ${i+1} ${childName} - 營會費: $${PRICING.camp}`);
+                        }
+                    }
+                    if (c.outing !== 'E') {
+                        let p = PRICING.outing[c.outing];
+                        childTotal += p;
+                        details.push(`孩童 ${i+1} ${childName} - 出遊方案 ${c.outing}: $${p}`);
+                    }
+                    total += childTotal;
+                });
+
+                adults.forEach((a, i) => {
+                    if (a.outing !== 'E') {
+                        let p = PRICING.outing[a.outing];
+                        total += p;
+                        let adultName = a.name ? `(${a.name})` : '';
+                        details.push(`親友 ${i+1} ${adultName} - 出遊方案 ${a.outing}: $${p}`);
+                    }
+                });
+
+                return { total, details };
             }, [children, adults, contact]);
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setSubmitStatus('loading');
 
-                // 🌟 使用您專屬的 Google Apps Script 網址
                 const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzJSTok-mrRbdYZhok2f6AiUhvKW1K231_poeFmDhm1jhpHj-ciltmEn3OrOV5ZnY6t/exec';
 
                 if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes('YOUR_')) {
-                    alert('【系統提示】請先在程式碼中填入您的 Google Apps Script 網址！');
+                    setAlertMsg('【系統提示】\n請先在程式碼中填入您的 Google Apps Script 網址！');
                     setSubmitStatus('idle');
                     return;
                 }
@@ -164,19 +194,20 @@
                     }
                 };
                 tally(contact.outing, contact.diy, null);
-                if (contact.type === '一般家庭') children.forEach(c => tally(c.outing, c.diy, c.campDays));
+                // 💡 確保同工填寫的孩童也會被統計進去
+                children.forEach(c => tally(c.outing, c.diy, c.campDays));
                 adults.forEach(a => tally(a.outing, a.diy, null));
 
                 const getC = (idx, field) => {
-                    if (contact.type !== '一般家庭') return '';
                     if (!children[idx]) return '';
                     if (field === 'campDays') return children[idx].campDays.length > 0 ? children[idx].campDays.sort().join('、') : '不參加';
                     return children[idx][field] || '';
                 };
                 const getA = (idx, field) => adults[idx] ? (adults[idx][field] || '') : '';
 
+                // 維持完美原始 54 欄位，不加備註欄位
                 const flatValues = [
-                    new Date().toLocaleString(), totalAmount, counts.camp, counts.A, counts.B, counts.C, counts.D, counts.diyA, counts.diyB,
+                    new Date().toLocaleString(), feeDetails.total, counts.camp, counts.A, counts.B, counts.C, counts.D, counts.diyA, counts.diyB,
                     contact.name, contact.phone, contact.email, contact.type, contact.type === '教會同工' ? contact.tshirtSize : '', contact.outing, contact.diy, contact.birthDate, contact.idNumber,
                     getC(0, 'name'), getC(0, 'campDays'), getC(0, 'tshirtSize'), getC(0, 'outing'), getC(0, 'diy'), getC(0, 'birthDate'), getC(0, 'idNumber'),
                     getC(1, 'name'), getC(1, 'campDays'), getC(1, 'tshirtSize'), getC(1, 'outing'), getC(1, 'diy'), getC(1, 'birthDate'), getC(1, 'idNumber'),
@@ -188,7 +219,7 @@
 
                 const payload = {
                     values: flatValues,
-                    emailData: { email: contact.email, name: contact.name, totalAmount: totalAmount }
+                    emailData: { email: contact.email, name: contact.name, totalAmount: feeDetails.total }
                 };
 
                 try {
@@ -212,15 +243,32 @@
                             <Icon name="check-circle" className="w-16 h-16 text-green-500 mx-auto mb-4" />
                             <h2 className="text-2xl font-bold text-gray-800 mb-2">報名成功！</h2>
                             <p className="text-gray-600 mb-2">感謝您的報名，我們已將報名資訊寄至：<br /><span className="font-semibold text-gray-800">{contact.email}</span></p>
-                            <p className="text-gray-600 mb-6">請協助繳交費用總計 <span className="font-bold text-xl text-blue-600">${totalAmount}</span> 元。</p>
-                            <button onClick={() => window.location.reload()} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">返回重新填寫</button>
+                            <p className="text-gray-600 mb-6">請協助繳交費用總計 <span className="font-bold text-xl text-blue-600">${feeDetails.total}</span> 元。</p>
+                            <button onClick={() => window.location.reload()} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition shadow-sm">返回重新填寫</button>
                         </div>
                     </div>
                 );
             }
 
             return (
-                <div className="min-h-screen bg-slate-100 py-8 px-4 font-sans text-gray-800">
+                <div className="min-h-screen bg-slate-100 py-8 px-4 font-sans text-gray-800 relative">
+                    
+                    {/* 防呆彈出視窗 Modal */}
+                    {alertMsg && (
+                        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+                            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center transform transition-all scale-100">
+                                <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Icon name="alert-triangle" className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2">系統防呆提醒</h3>
+                                <p className="text-gray-600 mb-6 whitespace-pre-line text-left leading-relaxed">{alertMsg}</p>
+                                <button type="button" onClick={() => setAlertMsg('')} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
+                                    我知道了
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="max-w-3xl mx-auto space-y-6">
 
                         {/* Header & 活動詳情 */}
@@ -230,7 +278,6 @@
                                 <p className="text-gray-600 text-sm mb-4">景美浸信會 2026暑期愛在63村</p>
                             </div>
                             
-                            {/* 💡 新增的活動詳情區塊 */}
                             <div className="px-6 mb-4 space-y-4">
                                 <div className="bg-blue-50/70 p-4 rounded-lg border border-blue-100">
                                     <h3 className="font-bold text-blue-800 text-lg mb-2 flex items-center gap-2">
@@ -289,7 +336,7 @@
                             </div>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-6 pb-24">
+                        <form onSubmit={handleSubmit} className="space-y-6 pb-28">
 
                             {/* Section 1: Contact Info */}
                             <div className="bg-white rounded-xl shadow-sm p-6">
@@ -316,7 +363,17 @@
                                         <select
                                             value={contact.type}
                                             onChange={e => {
-                                                setContact(p => ({ ...p, type: e.target.value, tshirtSize: '', outing: 'E', diy: '', birthDate: '', idNumber: '' }));
+                                                const val = e.target.value;
+                                                setContact(p => ({ ...p, type: val, tshirtSize: '', outing: 'E', diy: '', birthDate: '', idNumber: '' }));
+                                                
+                                                // 💡 自動防呆：切換成同工且下方孩童欄位是全空的，就自動收起孩童欄位
+                                                if (val === '教會同工' && children.length === 1 && children[0].name === '' && children[0].campDays.length === 0 && children[0].outing === 'E') {
+                                                    setChildren([]);
+                                                } 
+                                                // 💡 自動防呆：切回一般家庭時，若沒有孩童欄位就自動補一個回去
+                                                else if (val === '一般家庭' && children.length === 0) {
+                                                    setChildren([{ id: Date.now(), name: '', campDays: [], outing: 'E', diy: '', tshirtSize: '', birthDate: '', idNumber: '' }]);
+                                                }
                                             }}
                                             className="w-full p-2 border rounded-md bg-white outline-none focus:ring-2 focus:ring-blue-500"
                                         >
@@ -351,10 +408,9 @@
                                                     value={contact.outing}
                                                     onChange={e => {
                                                         const val = e.target.value;
-                                                        // 💡 防呆機制一：當家長想改為「不參加出遊」時，檢查是否有孩童參加
-                                                        if (val === 'E' && contact.type === '一般家庭' && children.some(c => c.outing !== 'E')) {
-                                                            alert('【系統防呆提醒】\n有孩童已報名親子出遊，家長（主要聯絡人）必須隨行參加！\n若您確定不參加，請先將下方孩童的出遊方案皆設為「不參加」。');
-                                                            return; // 阻止變更
+                                                        if (val === 'E' && children.some(c => c.outing !== 'E')) {
+                                                            setAlertMsg('有孩童已報名親子出遊，家長（主要聯絡人）必須隨行參加！\n\n若您確定不參加，請先將下方孩童的「出遊方案」皆設為「不參加」。');
+                                                            return;
                                                         }
                                                         setContact(p => ({ ...p, outing: val, diy: NeedsDIYChoice(val) ? p.diy : '', birthDate: val === 'E' ? '' : p.birthDate, idNumber: val === 'E' ? '' : p.idNumber }));
                                                     }}
@@ -376,21 +432,31 @@
                                 </div>
                             </div>
 
-                            {/* Section 2: Children */}
-                            {contact.type === '一般家庭' && (
-                                <div className="bg-white rounded-xl shadow-sm p-6 transition-all duration-300">
-                                    <div className="flex justify-between items-center border-b pb-2 mb-4">
-                                        <h2 className="text-xl font-bold flex items-center gap-2">
-                                            <Icon name="users" className="w-5 h-5 text-green-600 mr-1" /> 孩童專區 <span className="text-sm font-normal text-gray-500">(最多 3 位)</span>
-                                        </h2>
-                                    </div>
+                            {/* Section 2: Children (💡 已經為同工全面解鎖) */}
+                            <div className="bg-white rounded-xl shadow-sm p-6 transition-all duration-300">
+                                <div className="flex justify-between items-center border-b pb-2 mb-4">
+                                    <h2 className="text-xl font-bold flex items-center gap-2">
+                                        <Icon name="users" className="w-5 h-5 text-green-600 mr-1" /> 孩童專區 <span className="text-sm font-normal text-gray-500">(最多 3 位)</span>
+                                    </h2>
+                                </div>
 
+                                {contact.type === '教會同工' && (
+                                    <div className="mb-4 text-sm text-green-700 bg-green-50 p-3 rounded-lg flex items-start gap-2 border border-green-200">
+                                        <Icon name="info" className="w-4 h-4 mt-0.5 shrink-0" />
+                                        <p>同工若有孩童參與營會或出遊，請點擊下方按鈕新增。孩童之收費與計算方式皆比照一般家庭辦理。</p>
+                                    </div>
+                                )}
+
+                                {children.length === 0 ? (
+                                    <p className="text-gray-500 text-center py-4 text-sm">目前無新增孩童資料。若需報名請點擊下方「新增孩童」。</p>
+                                ) : (
                                     <div className="space-y-6">
                                         {children.map((child, index) => (
                                             <div key={child.id} className="p-4 bg-green-50 rounded-lg border border-green-200 relative">
                                                 <div className="flex justify-between items-center mb-3">
                                                     <h3 className="font-bold text-green-800">第 {index + 1} 位孩童</h3>
-                                                    {children.length > 1 && (
+                                                    {/* 💡 防呆機制：一般家庭必須至少保留一位孩童，同工可以把孩童全刪光 */}
+                                                    {(children.length > 1 || contact.type === '教會同工') && (
                                                         <button type="button" onClick={() => handleRemoveChild(child.id)} className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1">
                                                             <Icon name="trash-2" className="w-4 h-4 mr-1" /> 刪除
                                                         </button>
@@ -437,9 +503,8 @@
                                                         <label className="block text-sm font-medium text-gray-700 mb-1">7/18 親子出遊方案 *</label>
                                                         <select value={child.outing} onChange={e => {
                                                             const val = e.target.value;
-                                                            // 💡 防呆機制二：當家長本來不參加，卻幫孩童報名出遊時，強制家長參加
                                                             if (val !== 'E' && contact.outing === 'E') {
-                                                                alert('【系統防呆提醒】\n孩童參加親子出遊時，家長（主要聯絡人）必須隨行參加！\n系統已自動為您勾選出遊「方案 A」，您可視需求至上方更改方案內容。');
+                                                                setAlertMsg('孩童參加親子出遊時，家長（主要聯絡人）必須隨行參加！\n\n系統已自動為您勾選出遊「方案 A」，您可視需求至上方更改方案內容。');
                                                                 setContact(p => ({ ...p, outing: 'A', diy: '', birthDate: '', idNumber: '' }));
                                                             }
                                                             updateChild(child.id, { outing: val, diy: NeedsDIYChoice(val) ? child.diy : '', birthDate: val === 'E' ? '' : child.birthDate, idNumber: val === 'E' ? '' : child.idNumber });
@@ -459,14 +524,14 @@
                                             </div>
                                         ))}
                                     </div>
+                                )}
 
-                                    {children.length < 3 && (
-                                        <button type="button" onClick={handleAddChild} className="mt-4 w-full py-3 border-2 border-dashed border-green-300 text-green-600 font-semibold rounded-lg hover:bg-green-50 flex justify-center items-center gap-2 transition">
-                                            <Icon name="plus-circle" className="w-5 h-5 mr-1" /> 新增下一位孩童
-                                        </button>
-                                    )}
-                                </div>
-                            )}
+                                {children.length < 3 && (
+                                    <button type="button" onClick={handleAddChild} className="mt-4 w-full py-3 border-2 border-dashed border-green-300 text-green-600 font-semibold rounded-lg hover:bg-green-50 flex justify-center items-center gap-2 transition">
+                                        <Icon name="plus-circle" className="w-5 h-5 mr-1" /> 新增孩童
+                                    </button>
+                                )}
+                            </div>
 
                             {/* Section 3: Adults */}
                             <div className="bg-white rounded-xl shadow-sm p-6">
@@ -532,14 +597,33 @@
                                 </div>
                             )}
 
-                            {/* Sticky Footer */}
-                            <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
+                            {/* Sticky Footer (💡 費用明細按鈕) */}
+                            <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
                                 <div className="max-w-3xl mx-auto flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-gray-500 flex items-center gap-1"><Icon name="calculator" className="w-4 h-4 mr-1" /> 系統自動試算</p>
-                                        <p className="text-2xl font-bold text-blue-600">NT$ {totalAmount}</p>
+                                    <div className="relative">
+                                        <p className="text-xs text-gray-500 flex items-center gap-1 mb-0.5"><Icon name="calculator" className="w-3 h-3" /> 系統試算總金額</p>
+                                        <div className="flex items-end gap-2">
+                                            <p className="text-2xl font-bold text-blue-600 leading-none">NT$ {feeDetails.total}</p>
+                                            <button type="button" onClick={() => setShowDetails(!showDetails)} className="text-sm text-blue-500 hover:text-blue-700 underline underline-offset-2 mb-0.5">
+                                                查看明細
+                                            </button>
+                                        </div>
+
+                                        {/* 明細彈出選單 */}
+                                        {showDetails && (
+                                            <div className="absolute bottom-full left-0 mb-3 w-72 sm:w-80 bg-white border rounded-xl shadow-xl p-4 text-sm z-30">
+                                                <div className="flex justify-between items-center border-b pb-2 mb-2">
+                                                    <span className="font-bold text-gray-800">費用計算明細</span>
+                                                    <button type="button" onClick={() => setShowDetails(false)} className="text-gray-400 hover:text-gray-600"><Icon name="x" className="w-4 h-4" /></button>
+                                                </div>
+                                                <ul className="space-y-1 text-gray-600 max-h-48 overflow-y-auto">
+                                                    {feeDetails.details.length > 0 ? feeDetails.details.map((d, i) => <li key={i}>• {d}</li>) : <li>尚無收費項目</li>}
+                                                </ul>
+                                                <div className="border-t mt-2 pt-2 text-right font-bold text-blue-600">總計：NT$ {feeDetails.total}</div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <button type="submit" disabled={submitStatus === 'loading'} className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition flex items-center gap-2 disabled:bg-blue-300 shadow-sm">
+                                    <button type="submit" disabled={submitStatus === 'loading'} className="bg-blue-600 text-white px-6 sm:px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition flex items-center gap-2 disabled:bg-blue-300 shadow-sm">
                                         {submitStatus === 'loading' ? '處理中...' : '確認送出'} <Icon name="send" className="w-5 h-5 ml-1" />
                                     </button>
                                 </div>
