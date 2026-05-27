@@ -52,24 +52,29 @@
         // --- 共用元件 ---
         const Icon = ({ name, className }) => <i data-lucide={name} className={className}></i>;
 
-        const DIYSelection = ({ value, onChange, extraClass = "" }) => (
-            <div className={`pl-4 border-l-4 border-yellow-400 py-2 mt-3 relative ${extraClass}`}>
-                <label className="block text-sm font-bold text-yellow-800 mb-2">手作項目選擇 (請點擊下方圖片) <span className="text-red-500">*</span></label>
-                <input type="text" required value={value} readOnly className="absolute opacity-0 w-0 h-0 pointer-events-none" tabIndex={-1} />
-                <div className="grid grid-cols-2 gap-3">
-                    {['A', 'B'].map((type) => (
-                        <div key={type} onClick={() => onChange(type)} className={`cursor-pointer rounded-lg border-2 p-2 flex flex-col items-center gap-2 transition-all ${value === type ? 'border-yellow-500 bg-yellow-50 shadow-md transform scale-[1.02]' : 'border-gray-200 hover:border-yellow-300 bg-white'}`}>
-                            <div className="w-full aspect-[4/3] rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
-                                <img src={type === 'A' ? "https://docs.google.com/drawings/d/e/2PACX-1vTp6s0-oT0cLX5M5ulqiN2IlXAqvcgTa1jkpNrAIJzinWsRkeokORYJTNhFytEX65O89IwzpqK70qKc/pub?w=547&h=717" : "https://docs.google.com/drawings/d/e/2PACX-1vTdvzKSG_r-slZeGxE9bVhGcuvIRXtf7O9Lz3VeaPNYrLTd4hcxyMmGmWk8J7W3_5QofigAreBoSA0X/pub?w=724&h=718"} alt={type === 'A' ? "泡芙" : "甜甜圈"} className="w-full h-full object-cover" />
+        const DIYSelection = ({ value, onChange, extraClass = "" }) => {
+            const PUFF_IMG = "https://docs.google.com/drawings/d/e/2PACX-1vTp6s0-oT0cLX5M5ulqiN2IlXAqvcgTa1jkpNrAIJzinWsRkeokORYJTNhFytEX65O89IwzpqK70qKc/pub?w=547&h=717";
+            const DONUT_IMG = "https://docs.google.com/drawings/d/e/2PACX-1vTdvzKSG_r-slZeGxE9bVhGcuvIRXtf7O9Lz3VeaPNYrLTd4hcxyMmGmWk8J7W3_5QofigAreBoSA0X/pub?w=724&h=718";
+
+            return (
+                <div className={`pl-4 border-l-4 border-yellow-400 py-2 mt-3 relative ${extraClass}`}>
+                    <label className="block text-sm font-bold text-yellow-800 mb-2">手作項目選擇 (請點擊下方圖片) <span className="text-red-500">*</span></label>
+                    <input type="text" required value={value} readOnly className="absolute opacity-0 w-0 h-0 pointer-events-none" tabIndex={-1} />
+                    <div className="grid grid-cols-2 gap-3">
+                        {['A', 'B'].map((type) => (
+                            <div key={type} onClick={() => onChange(type)} className={`cursor-pointer rounded-lg border-2 p-2 flex flex-col items-center gap-2 transition-all ${value === type ? 'border-yellow-500 bg-yellow-50 shadow-md transform scale-[1.02]' : 'border-gray-200 hover:border-yellow-300 bg-white'}`}>
+                                <div className="w-full aspect-[4/3] rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
+                                    <img src={type === 'A' ? PUFF_IMG : DONUT_IMG} alt={type === 'A' ? "泡芙" : "甜甜圈"} className="w-full h-full object-cover bg-white" />
+                                </div>
+                                <span className={`font-bold text-sm text-center ${value === type ? 'text-yellow-700' : 'text-gray-600'}`}>
+                                    手作 {type} ({type === 'A' ? '小熊泡芙' : '彩色甜甜圈'})
+                                </span>
                             </div>
-                            <span className={`font-bold text-sm text-center ${value === type ? 'text-yellow-700' : 'text-gray-600'}`}>
-                                手作 {type} ({type === 'A' ? '小熊泡芙' : '彩色甜甜圈'})
-                            </span>
-                        </div>
-                    ))}
+                        ))}
+                    </div>
                 </div>
-            </div>
-        );
+            );
+        };
 
         const InsuranceBlock = ({ theme, birthDate, idNumber, onChangeBirth, onChangeId, extraClass = "" }) => {
             const colors = {
@@ -99,7 +104,8 @@
 
         // --- 主程式 App ---
         function App() {
-            const [contact, setContact] = useState({ name: '', phone: '', email: '', type: '一般家庭', tshirtSize: '', outing: 'A', diy: '', birthDate: '', idNumber: '' });
+            // 💡 聯絡人預設為不參加出遊 (outing: 'E')
+            const [contact, setContact] = useState({ name: '', phone: '', email: '', type: '一般家庭', tshirtSize: '', outing: 'E', diy: '', birthDate: '', idNumber: '' });
             const [children, setChildren] = useState([{ id: Date.now(), name: '', campDays: [], outing: 'E', diy: '', tshirtSize: '', birthDate: '', idNumber: '' }]);
             const [adults, setAdults] = useState([]);
             const [submitStatus, setSubmitStatus] = useState('idle');
@@ -189,11 +195,9 @@
                     await fetch(GOOGLE_SCRIPT_URL, {
                         method: 'POST',
                         mode: 'no-cors',
-                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 🚀 關鍵防護，避免 CORS 錯誤
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify(payload)
                     });
-                    
-                    // 因為 mode: 'no-cors' 會產生不透明的 response，我們直接預設請求成功
                     setSubmitStatus('success');
                 } catch (error) {
                     console.error('傳輸錯誤:', error);
@@ -219,19 +223,68 @@
                 <div className="min-h-screen bg-slate-100 py-8 px-4 font-sans text-gray-800">
                     <div className="max-w-3xl mx-auto space-y-6">
 
-                        {/* Header */}
-                        <div className="bg-white rounded-xl shadow-sm p-6 border-t-4 border-blue-600">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-2">《信心Go Shoot!》+ 親子出遊 報名系統</h1>
-                            <p className="text-gray-600 text-sm mb-4">景美浸信會 2026暑期愛在63村</p>
-                            <div className="bg-blue-50 text-blue-800 p-4 rounded-lg flex items-start gap-3 text-sm">
-                                <Icon name="info" className="w-5 h-5 shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="font-semibold mb-1">填表須知：</p>
-                                    <ul className="list-disc pl-4 space-y-1">
-                                        <li>本表單可自動試算費用。每單最多報名 <strong>3位孩童</strong> 及 <strong>4位大人 (含主要聯絡人)</strong>。</li>
-                                        <li><strong>營會收費說明：</strong>兒童營會費統一為 <strong>$700 (贈T-Shirt)</strong>，請確實勾選出席日期。</li>
-                                        <li>為了辦理旅遊平安險，有參與出遊者請務必填寫出生年月日及身分證字號。</li>
+                        {/* Header & 活動詳情 */}
+                        <div className="bg-white rounded-xl shadow-sm overflow-hidden border-t-4 border-blue-600">
+                            <div className="p-6 pb-2">
+                                <h1 className="text-2xl sm:text-3xl font-bold text-blue-900 mb-2">《信心Go Shoot!》+ 親子出遊 報名系統</h1>
+                                <p className="text-gray-600 text-sm mb-4">景美浸信會 2026暑期愛在63村</p>
+                            </div>
+                            
+                            {/* 💡 新增的活動詳情區塊 */}
+                            <div className="px-6 mb-4 space-y-4">
+                                <div className="bg-blue-50/70 p-4 rounded-lg border border-blue-100">
+                                    <h3 className="font-bold text-blue-800 text-lg mb-2 flex items-center gap-2">
+                                        <Icon name="tent" className="w-5 h-5" /> 《信心Go Shoot!》兒童營會
+                                    </h3>
+                                    <ul className="space-y-1 text-sm text-gray-700">
+                                        <li><strong>營會對象：</strong>2026年一至六年級學生</li>
+                                        <li><strong>營會時間：</strong>2026年7月15日至17日（星期三至五）09:00-16:45</li>
+                                        <li><strong>營會地點：</strong>中華基督教景美浸信會B1副堂（臺北市文山區育英街63號）</li>
+                                        <li><strong>營會內容：</strong>遊戲、詩歌、聖經故事、團體活動與體驗</li>
+                                        <li><strong>攜帶物品：</strong>餐具、水壺、鉛筆盒</li>
+                                        <li className="mt-2 text-rose-600 font-semibold">P.S. 報名參與營會者，可獲得營會T-Shirt一件！</li>
                                     </ul>
+                                </div>
+
+                                <div className="bg-green-50/70 p-4 rounded-lg border border-green-100">
+                                    <h3 className="font-bold text-green-800 text-lg mb-2 flex items-center gap-2">
+                                        <Icon name="map" className="w-5 h-5" /> 《親子出遊》
+                                    </h3>
+                                    <ul className="space-y-1 text-sm text-gray-700">
+                                        <li><strong>出遊時間：</strong>2026年7月18日（星期六）08:00-16:30</li>
+                                        <li><strong>集合地點：</strong>景美浸信會2F大堂</li>
+                                        <li><strong>出遊地點：</strong>亞太漆彈區+77巧克力共和國</li>
+                                        <li><strong>活動內容：</strong>親子水彈對戰（可自由參加）、團體活動、手作DIY</li>
+                                        <li className="pt-1">
+                                            <strong>水彈活動說明：</strong>水彈遊戲非水球或水槍對戰，對戰過程不會弄濕身體，不須自己帶水槍或其他設備，所有的防護設備、水彈槍與水彈（類似水晶寶寶的球體，打到身體不會痛）都會由廠商提供。
+                                        </li>
+                                        <li><strong>攜帶物品：</strong>防曬物品、水壺、雨具、驅蚊與個人藥品</li>
+                                    </ul>
+                                </div>
+
+                                <div className="bg-yellow-50/70 p-4 rounded-lg border border-yellow-100 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between text-sm text-gray-800">
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="clock" className="w-5 h-5 text-yellow-600" />
+                                        <span>活動報名截止日期：<strong>06/30（二）</strong></span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Icon name="phone" className="w-5 h-5 text-yellow-600" />
+                                        <span>疑問請洽：<strong>曾傳道 0912468909</strong></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-6 pt-0">
+                                <div className="bg-gray-100 text-gray-700 p-4 rounded-lg flex items-start gap-3 text-sm">
+                                    <Icon name="info" className="w-5 h-5 shrink-0 mt-0.5 text-gray-500" />
+                                    <div>
+                                        <p className="font-semibold mb-1">表單填寫須知：</p>
+                                        <ul className="list-disc pl-4 space-y-1">
+                                            <li>本表單可自動試算費用。每單最多報名 <strong>3位孩童</strong> 及 <strong>4位大人 (含主要聯絡人)</strong>。</li>
+                                            <li><strong>營會收費說明：</strong>兒童營會費統一為 <strong>$700 (贈T-Shirt)</strong>，請確實勾選出席日期。</li>
+                                            <li>為了辦理旅遊平安險，有參與出遊者請務必填寫出生年月日及身分證字號。</li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -263,8 +316,7 @@
                                         <select
                                             value={contact.type}
                                             onChange={e => {
-                                                const isFam = e.target.value === '一般家庭';
-                                                setContact(p => ({ ...p, type: e.target.value, tshirtSize: '', outing: isFam ? 'A' : 'E', diy: '', birthDate: '', idNumber: '' }));
+                                                setContact(p => ({ ...p, type: e.target.value, tshirtSize: '', outing: 'E', diy: '', birthDate: '', idNumber: '' }));
                                             }}
                                             className="w-full p-2 border rounded-md bg-white outline-none focus:ring-2 focus:ring-blue-500"
                                         >
@@ -303,7 +355,7 @@
                                                     }}
                                                     className="w-full p-2 border rounded-md bg-white border-blue-200 focus:ring-2 focus:ring-blue-500 outline-none"
                                                 >
-                                                    {(contact.type === '一般家庭' ? ADULT_OUTING_OPTIONS_REQUIRED : OUTING_OPTIONS).map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                                    {OUTING_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                                                 </select>
                                             </div>
                                         </div>
