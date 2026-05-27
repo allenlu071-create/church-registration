@@ -60,7 +60,7 @@
                     {['A', 'B'].map((type) => (
                         <div key={type} onClick={() => onChange(type)} className={`cursor-pointer rounded-lg border-2 p-2 flex flex-col items-center gap-2 transition-all ${value === type ? 'border-yellow-500 bg-yellow-50 shadow-md transform scale-[1.02]' : 'border-gray-200 hover:border-yellow-300 bg-white'}`}>
                             <div className="w-full aspect-[4/3] rounded-md overflow-hidden bg-gray-100 flex items-center justify-center">
-                                <img src={type === 'A' ? "https://i.imgur.com/kE9gD3H.jpeg" : "https://i.imgur.com/39hN75g.jpeg"} alt={type === 'A' ? "泡芙" : "甜甜圈"} className="w-full h-full object-cover" />
+                                <img src={type === 'A' ? "https://docs.google.com/drawings/d/e/2PACX-1vTp6s0-oT0cLX5M5ulqiN2IlXAqvcgTa1jkpNrAIJzinWsRkeokORYJTNhFytEX65O89IwzpqK70qKc/pub?w=547&h=717" : "https://docs.google.com/drawings/d/e/2PACX-1vTdvzKSG_r-slZeGxE9bVhGcuvIRXtf7O9Lz3VeaPNYrLTd4hcxyMmGmWk8J7W3_5QofigAreBoSA0X/pub?w=724&h=718"} alt={type === 'A' ? "泡芙" : "甜甜圈"} className="w-full h-full object-cover" />
                             </div>
                             <span className={`font-bold text-sm text-center ${value === type ? 'text-yellow-700' : 'text-gray-600'}`}>
                                 手作 {type} ({type === 'A' ? '小熊泡芙' : '彩色甜甜圈'})
