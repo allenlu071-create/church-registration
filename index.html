@@ -29,16 +29,17 @@
         const NeedsDIYChoice = (val) => val === 'B' || val === 'D';
         const ALL_CAMP_DAYS = ['7/15 (三)', '7/16 (四)', '7/17 (五)'];
 
+        // 💡 修改：全面移除衣服加價設定
         const TSHIRT_SIZES = [
-            { value: '小L(XXS)', label: '小L (XXS) - 建議身高 130~140cm', surcharge: 0 },
-            { value: '小XL(XS)', label: '小XL (XS) - 建議身高 140~155cm', surcharge: 0 },
-            { value: 'S', label: 'S - 建議身高 145~155cm (男/女皆可)', surcharge: 0 },
-            { value: 'M', label: 'M - 建議身高 155~165cm (男/女皆可)', surcharge: 0 },
-            { value: 'L', label: 'L - 建議身高 165~175cm (男生尺寸)', surcharge: 0 },
-            { value: 'XL', label: 'XL - 建議身高 175~185cm (男生尺寸)', surcharge: 0 },
-            { value: '2XL', label: '2XL - 建議身高 183cm 以上 (男生尺寸)', surcharge: 0 },
-            { value: '3XL', label: '3XL - 特大 (需加價 $50)', surcharge: 50 },
-            { value: '4XL', label: '4XL - 特大 (需加價 $100)', surcharge: 100 }
+            { value: '小L(XXS)', label: '小L (XXS) - 建議身高 130~140cm' },
+            { value: '小XL(XS)', label: '小XL (XS) - 建議身高 140~155cm' },
+            { value: 'S', label: 'S - 建議身高 145~155cm (男/女皆可)' },
+            { value: 'M', label: 'M - 建議身高 155~165cm (男/女皆可)' },
+            { value: 'L', label: 'L - 建議身高 165~175cm (男生尺寸)' },
+            { value: 'XL', label: 'XL - 建議身高 175~185cm (男生尺寸)' },
+            { value: '2XL', label: '2XL - 建議身高 183cm 以上 (男生尺寸)' },
+            { value: '3XL', label: '3XL - 特大' },
+            { value: '4XL', label: '4XL - 特大' }
         ];
 
         const OUTING_OPTIONS = [
@@ -105,7 +106,7 @@
 
         // --- 主程式 App ---
         function App() {
-            const [contact, setContact] = useState({ name: '', phone: '', email: '', type: '一般家庭', tshirtSize: '', outing: 'E', diy: '', birthDate: '', idNumber: '' });
+            const [contact, setContact] = useState({ name: '', phone: '', email: '', type: '一般家庭 (兒主與社區學生)', tshirtSize: '', outing: 'E', diy: '', birthDate: '', idNumber: '' });
             const [children, setChildren] = useState([{ id: Date.now(), name: '', campDays: [], outing: 'E', diy: '', tshirtSize: '', birthDate: '', idNumber: '' }]);
             const [adults, setAdults] = useState([]);
             const [submitStatus, setSubmitStatus] = useState('idle');
@@ -126,10 +127,14 @@
             const updateChild = (id, updates) => setChildren(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
             const updateAdult = (id, updates) => setAdults(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
 
-            // 💡 包含同工孩童計費的費用明細
+            // 💡 雙軌計費邏輯
             const feeDetails = useMemo(() => {
                 let total = 0;
                 let details = [];
+
+                // 判斷是否為小豆芽
+                const isSprout = contact.type === '小豆芽家庭 (聖愛幼兒園)';
+                const baseCampFee = isSprout ? 0 : PRICING.camp;
 
                 if (contact.outing !== 'E') {
                     let p = PRICING.outing[contact.outing];
@@ -137,20 +142,16 @@
                     details.push(`主要聯絡人 - 出遊方案 ${contact.outing}: $${p}`);
                 }
 
-                // 💡 移除限制，讓同工的孩子也正常計費並顯示於明細
                 children.forEach((c, i) => {
                     let childTotal = 0;
                     let childName = c.name ? `(${c.name})` : '';
                     
                     if (c.campDays.length > 0) {
-                        childTotal += PRICING.camp;
-                        const sizeObj = TSHIRT_SIZES.find(s => s.value === c.tshirtSize);
-                        if (sizeObj && sizeObj.surcharge > 0) {
-                            childTotal += sizeObj.surcharge;
-                            details.push(`孩童 ${i+1} ${childName} - 營會費 + T恤加價: $${PRICING.camp + sizeObj.surcharge}`);
-                        } else {
-                            details.push(`孩童 ${i+1} ${childName} - 營會費: $${PRICING.camp}`);
-                        }
+                        childTotal += baseCampFee;
+                        
+                        // 💡 費用明細文字變化 (移除了 T 恤加價)
+                        let feeText = isSprout ? "營會費 $0 (聖愛全額支應)" : `營會費: $${PRICING.camp}`;
+                        details.push(`孩童 ${i+1} ${childName} - ${feeText}`);
                     }
                     if (c.outing !== 'E') {
                         let p = PRICING.outing[c.outing];
@@ -194,7 +195,6 @@
                     }
                 };
                 tally(contact.outing, contact.diy, null);
-                // 💡 確保同工填寫的孩童也會被統計進去
                 children.forEach(c => tally(c.outing, c.diy, c.campDays));
                 adults.forEach(a => tally(a.outing, a.diy, null));
 
@@ -205,7 +205,7 @@
                 };
                 const getA = (idx, field) => adults[idx] ? (adults[idx][field] || '') : '';
 
-                // 維持完美原始 54 欄位，不加備註欄位
+                // 維持完美原始 54 欄位結構
                 const flatValues = [
                     new Date().toLocaleString(), feeDetails.total, counts.camp, counts.A, counts.B, counts.C, counts.D, counts.diyA, counts.diyB,
                     contact.name, contact.phone, contact.email, contact.type, contact.type === '教會同工' ? contact.tshirtSize : '', contact.outing, contact.diy, contact.birthDate, contact.idNumber,
@@ -359,28 +359,34 @@
                                         <input required type="email" value={contact.email} onChange={e => setContact(p => ({ ...p, email: e.target.value }))} className="w-full p-2 border rounded-md outline-none focus:ring-2 focus:ring-blue-500" placeholder="系統將自動寄送「報名成功與金額明細」至此信箱" />
                                     </div>
                                     <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">身分區別 *</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">報名身分 / 管道 *</label>
                                         <select
                                             value={contact.type}
                                             onChange={e => {
                                                 const val = e.target.value;
                                                 setContact(p => ({ ...p, type: val, tshirtSize: '', outing: 'E', diy: '', birthDate: '', idNumber: '' }));
                                                 
-                                                // 💡 自動防呆：切換成同工且下方孩童欄位是全空的，就自動收起孩童欄位
                                                 if (val === '教會同工' && children.length === 1 && children[0].name === '' && children[0].campDays.length === 0 && children[0].outing === 'E') {
                                                     setChildren([]);
-                                                } 
-                                                // 💡 自動防呆：切回一般家庭時，若沒有孩童欄位就自動補一個回去
-                                                else if (val === '一般家庭' && children.length === 0) {
+                                                } else if (val !== '教會同工' && children.length === 0) {
                                                     setChildren([{ id: Date.now(), name: '', campDays: [], outing: 'E', diy: '', tshirtSize: '', birthDate: '', idNumber: '' }]);
                                                 }
                                             }}
-                                            className="w-full p-2 border rounded-md bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="w-full p-2 border rounded-md bg-white outline-none focus:ring-2 focus:ring-blue-500 font-medium text-blue-900"
                                         >
-                                            <option value="一般家庭">一般家庭</option>
+                                            <option value="一般家庭 (兒主與社區學生)">一般家庭 (兒主與社區學生)</option>
+                                            <option value="小豆芽家庭 (聖愛幼兒園)">小豆芽家庭 (聖愛幼兒園)</option>
                                             <option value="教會同工">教會同工</option>
                                         </select>
                                     </div>
+
+                                    {/* 💡 小豆芽專屬提醒：文字更新 */}
+                                    {contact.type === '小豆芽家庭 (聖愛幼兒園)' && (
+                                        <div className="md:col-span-2 bg-green-50 border border-green-200 text-green-800 p-3 rounded-lg text-sm flex items-start gap-2 mt-1">
+                                            <Icon name="check-circle-2" className="w-5 h-5 shrink-0 mt-0.5 text-green-600" />
+                                            <p><strong>專案優惠說明：</strong>小豆芽家庭之兒童「營會費 $700」將由聖愛全額支應。本表單僅為您計算「親子出遊」之費用。</p>
+                                        </div>
+                                    )}
 
                                     {/* 聯絡人專屬：衣服與出遊保險區塊 */}
                                     <div className="md:col-span-2 space-y-4 mt-2 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -432,7 +438,7 @@
                                 </div>
                             </div>
 
-                            {/* Section 2: Children (💡 已經為同工全面解鎖) */}
+                            {/* Section 2: Children */}
                             <div className="bg-white rounded-xl shadow-sm p-6 transition-all duration-300">
                                 <div className="flex justify-between items-center border-b pb-2 mb-4">
                                     <h2 className="text-xl font-bold flex items-center gap-2">
@@ -455,7 +461,6 @@
                                             <div key={child.id} className="p-4 bg-green-50 rounded-lg border border-green-200 relative">
                                                 <div className="flex justify-between items-center mb-3">
                                                     <h3 className="font-bold text-green-800">第 {index + 1} 位孩童</h3>
-                                                    {/* 💡 防呆機制：一般家庭必須至少保留一位孩童，同工可以把孩童全刪光 */}
                                                     {(children.length > 1 || contact.type === '教會同工') && (
                                                         <button type="button" onClick={() => handleRemoveChild(child.id)} className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1">
                                                             <Icon name="trash-2" className="w-4 h-4 mr-1" /> 刪除
@@ -473,7 +478,14 @@
                                                         <label className="block text-sm font-bold text-green-800 mb-2 flex items-center gap-1">
                                                             <Icon name="calendar-check" className="w-4 h-4 mr-1" /> 營會出席日期 (請勾選)
                                                         </label>
-                                                        <p className="text-xs text-gray-500 mb-3">只要勾選任一日，營會費用即為統一價 $700，若都不勾選視為不參加。</p>
+                                                        
+                                                        {/* 💡 提示文字動態變化：配合全額支應文字 */}
+                                                        {contact.type === '小豆芽家庭 (聖愛幼兒園)' ? (
+                                                            <p className="text-xs text-green-600 font-medium mb-3">※ 小豆芽營會費由聖愛全額支應。若都不勾選視為不參加營會。</p>
+                                                        ) : (
+                                                            <p className="text-xs text-gray-500 mb-3">只要勾選任一日，營會費用即為統一價 $700，若都不勾選視為不參加。</p>
+                                                        )}
+                                                        
                                                         <div className="flex flex-col sm:flex-row gap-3 sm:gap-6">
                                                             {ALL_CAMP_DAYS.map(day => (
                                                                 <label key={day} className="flex items-center gap-2 cursor-pointer hover:bg-green-50 p-1 rounded transition-colors">
@@ -542,7 +554,7 @@
                                 </div>
 
                                 {adults.length === 0 ? (
-                                    <p className="text-gray-500 text-center py-4 text-sm">若無其他親友，請直接送出表單。</p>
+                                    <p className="text-gray-500 text-center py-4 text-sm">若無其他親友參加出遊，請直接送出表單。</p>
                                 ) : (
                                     <div className="space-y-6">
                                         {adults.map((adult, index) => (
@@ -597,7 +609,7 @@
                                 </div>
                             )}
 
-                            {/* Sticky Footer (💡 費用明細按鈕) */}
+                            {/* Sticky Footer */}
                             <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
                                 <div className="max-w-3xl mx-auto flex items-center justify-between">
                                     <div className="relative">
